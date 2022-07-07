@@ -28,7 +28,26 @@ impl DateTime {
     }
 }
 
-const NOT_FOUND: fn() -> std::io::Error = || std::io::Error::new(std::io::ErrorKind::NotFound, "");
+impl std::fmt::Display for DateTime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_string())
+    }
+}
+impl std::fmt::Display for DateTimeOriginal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_string())
+    }
+}
+impl std::fmt::Display for CreateDate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_string())
+    }
+}
+
+const DTO_NOT_FOUND: fn() -> std::io::Error =
+    || std::io::Error::new(std::io::ErrorKind::NotFound, "DateTimeOriginal");
+const CD_NOT_FOUND: fn() -> std::io::Error =
+    || std::io::Error::new(std::io::ErrorKind::NotFound, "CreateDate");
 
 #[derive(Debug, Clone, Copy)]
 pub struct DateTimeOriginal(pub DateTime);
@@ -74,7 +93,7 @@ impl FromXmp for DateTimeOriginal {
         let d = xmp::try_get_description(&x)?;
 
         let date_str = xmp::try_get_item(d, xmp::EXIF_DATETIMEORIGINAL)?;
-        let date_offset = xmp::time::timestamp_offset(date_str).ok_or_else(NOT_FOUND)?;
+        let date_offset = xmp::time::timestamp_offset(date_str).ok_or_else(DTO_NOT_FOUND)?;
         Ok(Self(DateTime {
             time: date_offset.0,
             offset: date_offset.1,
@@ -90,7 +109,7 @@ impl FromXmp for CreateDate {
         let d = xmp::try_get_description(&x)?;
 
         let date_str = xmp::try_get_item(d, xmp::XMP_CREATEDATE)?;
-        let date_offset = xmp::time::timestamp_offset(date_str).ok_or_else(NOT_FOUND)?;
+        let date_offset = xmp::time::timestamp_offset(date_str).ok_or_else(CD_NOT_FOUND)?;
         Ok(Self(DateTime {
             time: date_offset.0,
             offset: date_offset.1,
@@ -109,7 +128,7 @@ impl FromExif for CreateDate {
         let date_str = exif
             .fields()
             .find(|f| f.tag.1 == 0x0132)
-            .ok_or_else(NOT_FOUND)?
+            .ok_or_else(CD_NOT_FOUND)?
             .display_value()
             .to_string();
 
@@ -133,7 +152,7 @@ impl FromExif for DateTimeOriginal {
         let date_str = exif
             .fields()
             .find(|f| f.tag.1 == 0x9003)
-            .ok_or_else(NOT_FOUND)?
+            .ok_or_else(DTO_NOT_FOUND)?
             .display_value()
             .to_string();
 
@@ -156,7 +175,7 @@ impl FromRaw for DateTimeOriginal {
         let x = xmp::try_load_element(std::io::Cursor::new(xml))?;
         let d = xmp::try_get_description(&x)?;
         let date_str = xmp::try_get_item(d, xmp::EXIF_DATETIMEORIGINAL)?;
-        let date_offset = xmp::time::timestamp_offset(date_str).ok_or_else(NOT_FOUND)?;
+        let date_offset = xmp::time::timestamp_offset(date_str).ok_or_else(DTO_NOT_FOUND)?;
         Ok(Self(DateTime {
             time: date_offset.0,
             offset: date_offset.1,
@@ -181,7 +200,7 @@ impl FromRaw for CreateDate {
             0
         };
         let date_offset = xmp::time::timestamp_offset(date_str)
-            .ok_or_else(NOT_FOUND)
+            .ok_or_else(CD_NOT_FOUND)
             .unwrap_or((
                 if sony_time != 0 {
                     sony_time
@@ -207,7 +226,7 @@ impl DateTimeOriginal {
         } else if let Ok(s) = Self::from_raw(path) {
             Ok(s)
         } else {
-            Err(NOT_FOUND())?
+            Err(DTO_NOT_FOUND())?
         }
     }
 }
@@ -221,7 +240,7 @@ impl CreateDate {
         } else if let Ok(s) = Self::from_raw(path) {
             Ok(s)
         } else {
-            Err(NOT_FOUND())?
+            Err(CD_NOT_FOUND())?
         }
     }
 }
@@ -242,4 +261,12 @@ pub fn sony_time(date: impl AsRef<str>) -> Option<i64> {
             .ok()?
             .timestamp(),
     )
+}
+
+pub fn get_timestamp(path: impl AsRef<Path>) -> Result<i64, errors::Error> {
+    Ok(if let Ok(t) = DateTimeOriginal::from_file(&path) {
+        t.to_original()
+    } else {
+        CreateDate::from_file(&path)?.to_original()
+    })
 }
