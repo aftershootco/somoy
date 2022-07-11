@@ -2,7 +2,7 @@ use std::path::Path;
 pub mod errors;
 
 use std::ops::{Deref, DerefMut};
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct DateTime {
     /// The time in utc
     pub time: i64,
