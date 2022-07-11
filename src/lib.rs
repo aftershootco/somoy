@@ -20,11 +20,20 @@ impl DateTime {
     pub fn to_original(&self) -> i64 {
         self.time + self.offset.unwrap_or(0)
     }
-    pub fn to_local(&self) -> i64 {
-        todo!()
-    }
+    // fn to_local(&self) -> i64 {
+    //     todo!()
+    // }
     pub fn as_string(&self) -> String {
         chrono::NaiveDateTime::from_timestamp(self.to_original(), 0).to_string()
+    }
+
+    pub fn from_string(date: impl AsRef<str>) -> Result<Self, errors::Error> {
+        let date_offset = xmp::time::timestamp_offset(date.as_ref()).ok_or_else(NOT_FOUND)?;
+        Ok(DateTime {
+            time: date_offset.0,
+            offset: date_offset.1,
+            ms: None,
+        })
     }
 }
 
@@ -48,6 +57,8 @@ const DTO_NOT_FOUND: fn() -> std::io::Error =
     || std::io::Error::new(std::io::ErrorKind::NotFound, "DateTimeOriginal");
 const CD_NOT_FOUND: fn() -> std::io::Error =
     || std::io::Error::new(std::io::ErrorKind::NotFound, "CreateDate");
+const NOT_FOUND: fn() -> std::io::Error =
+    || std::io::Error::new(std::io::ErrorKind::NotFound, "DateTime");
 
 #[derive(Debug, Clone, Copy)]
 pub struct DateTimeOriginal(pub DateTime);
