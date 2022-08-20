@@ -1,5 +1,7 @@
 use std::path::Path;
 pub mod errors;
+mod traits;
+use traits::MatchesExtension;
 
 use std::ops::{Deref, DerefMut};
 #[derive(Debug, Clone, Copy, Default)]
@@ -52,6 +54,8 @@ impl std::fmt::Display for CreateDate {
         write!(f, "{}", self.as_string())
     }
 }
+
+const EXIF_FORMATS: [&str; 7] = ["jpg", "jpeg", "png", "tif", "tiff", "webp", "nef"];
 
 const DTO_NOT_FOUND: fn() -> std::io::Error =
     || std::io::Error::new(std::io::ErrorKind::NotFound, "DateTimeOriginal");
@@ -157,7 +161,7 @@ impl FromExif for DateTimeOriginal {
     type Error = errors::Error;
     fn from_exif(path: impl AsRef<Path>) -> Result<Self, Self::Error> {
         let file = std::fs::File::open(path)?;
-        let mut bufreader = std::io::BufReader::new(&file);
+        let mut bufreader = std::io::BufReader::new(&file); // 1MB
         let exifreader = exif::Reader::new();
         let exif = exifreader.read_from_container(&mut bufreader)?;
         let date_str = exif
@@ -205,7 +209,8 @@ impl FromRaw for CreateDate {
         let x = xmp::try_load_element(std::io::Cursor::new(xml))?;
         let d = xmp::try_get_description(&x)?;
         let date_str = xmp::try_get_item(d, xmp::XMP_CREATEDATE).unwrap_or_default();
-        let sony_time = if is_arw(&path) {
+
+        let sony_time = if path.matches_extension(["arw"]) {
             sony_time(p.makernotes().sony.SonyDateTime.as_ascii()).unwrap_or_default()
         } else {
             0
@@ -232,6 +237,25 @@ impl DateTimeOriginal {
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, errors::Error> {
         if let Ok(s) = Self::from_xmp(path.as_ref().with_extension("xmp")) {
             Ok(s)
+        } else if path.matches_extension(EXIF_FORMATS) {
+            if let Ok(s) = Self::from_exif(path.as_ref()) {
+                Ok(s)
+            } else if let Ok(s) = Self::from_raw(path) {
+                Ok(s)
+            } else {
+                Err(DTO_NOT_FOUND())?
+            }
+        } else {
+            if let Ok(s) = Self::from_raw(path) {
+                Ok(s)
+            } else {
+                Err(DTO_NOT_FOUND())?
+            }
+        }
+    }
+    pub fn naive_from_file(path: impl AsRef<Path>) -> Result<Self, errors::Error> {
+        if let Ok(s) = Self::from_xmp(path.as_ref().with_extension("xmp")) {
+            Ok(s)
         } else if let Ok(s) = Self::from_exif(path.as_ref()) {
             Ok(s)
         } else if let Ok(s) = Self::from_raw(path) {
@@ -246,6 +270,25 @@ impl CreateDate {
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, errors::Error> {
         if let Ok(s) = Self::from_xmp(path.as_ref().with_extension("xmp")) {
             Ok(s)
+        } else if path.matches_extension(EXIF_FORMATS) {
+            if let Ok(s) = Self::from_exif(path.as_ref()) {
+                Ok(s)
+            } else if let Ok(s) = Self::from_raw(path) {
+                Ok(s)
+            } else {
+                Err(CD_NOT_FOUND())?
+            }
+        } else {
+            if let Ok(s) = Self::from_raw(path) {
+                Ok(s)
+            } else {
+                Err(CD_NOT_FOUND())?
+            }
+        }
+    }
+    pub fn naive_from_file(path: impl AsRef<Path>) -> Result<Self, errors::Error> {
+        if let Ok(s) = Self::from_xmp(path.as_ref().with_extension("xmp")) {
+            Ok(s)
         } else if let Ok(s) = Self::from_exif(path.as_ref()) {
             Ok(s)
         } else if let Ok(s) = Self::from_raw(path) {
@@ -254,16 +297,6 @@ impl CreateDate {
             Err(CD_NOT_FOUND())?
         }
     }
-}
-
-fn is_arw<P: AsRef<Path>>(path: P) -> bool {
-    let extension = path
-        .as_ref()
-        .extension()
-        .and_then(std::ffi::OsStr::to_str)
-        .map(str::to_lowercase);
-    let extension = extension.as_deref();
-    Some("arw") == extension
 }
 
 pub fn sony_time(date: impl AsRef<str>) -> Option<i64> {
