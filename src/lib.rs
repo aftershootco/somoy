@@ -1,7 +1,7 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 pub mod errors;
-mod traits;
 mod exif_raw;
+mod traits;
 use traits::MatchesExtension;
 
 use std::ops::{Deref, DerefMut};
@@ -186,7 +186,24 @@ impl FromRaw for DateTimeOriginal {
     type Error = errors::Error;
     fn from_raw(path: impl AsRef<Path>) -> Result<Self, Self::Error> {
         let mut p = libraw_r::Processor::default();
+        let mut dates: HashMap<i32, String> = HashMap::new();
+        unsafe {
+            p.set_exifparser_callback(
+                Some(libraw_r::exif::exif_parser_callback),
+                std::mem::transmute(&mut dates),
+            )?
+        };
         p.open(path)?;
+        if let Some(date) = dates.get(&0x9003) {
+            if let Some(t) = sony_time(date) {
+                return Ok(Self(DateTime {
+                    time: t,
+                    offset: None,
+                    ms: None,
+                }));
+            }
+        }
+
         let xml = p.xmpdata()?;
         let x = xmp::try_load_element(std::io::Cursor::new(xml))?;
         let d = xmp::try_get_description(&x)?;
