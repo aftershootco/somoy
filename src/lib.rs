@@ -56,7 +56,7 @@ impl std::fmt::Display for CreateDate {
     }
 }
 
-const EXIF_FORMATS: [&str; 7] = ["jpg", "jpeg", "png", "tif", "tiff", "webp", "nef"];
+const EXIF_FORMATS: [&str; 6] = ["jpg", "jpeg", "png", "tif", "tiff", "webp"];
 
 const DTO_NOT_FOUND: fn() -> std::io::Error =
     || std::io::Error::new(std::io::ErrorKind::NotFound, "DateTimeOriginal");
@@ -222,12 +222,28 @@ impl FromRaw for CreateDate {
     fn from_raw(path: impl AsRef<Path>) -> Result<Self, Self::Error> {
         use libraw_r::traits::LRString;
         let mut p = libraw_r::Processor::default();
+        let mut dates: HashMap<i32, String> = HashMap::new();
+        unsafe {
+            p.set_exifparser_callback(
+                Some(libraw_r::exif::exif_parser_callback),
+                std::mem::transmute(&mut dates),
+            )?
+        };
         p.open(&path)?;
         let xml = p.xmpdata()?;
         let x = xmp::try_load_element(std::io::Cursor::new(xml))?;
         let d = xmp::try_get_description(&x)?;
         let date_str = xmp::try_get_item(d, xmp::XMP_CREATEDATE).unwrap_or_default();
 
+        if let Some(date) = dates.get(&0x9003) {
+            if let Some(t) = sony_time(date) {
+                return Ok(Self(DateTime {
+                    time: t,
+                    offset: None,
+                    ms: None,
+                }));
+            }
+        }
         let sony_time = if path.matches_extension(["arw"]) {
             sony_time(p.makernotes().sony.SonyDateTime.as_ascii()).unwrap_or_default()
         } else {
