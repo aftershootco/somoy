@@ -1,6 +1,7 @@
 use std::path::Path;
 pub mod errors;
 mod traits;
+mod exif_raw;
 use traits::MatchesExtension;
 
 use std::ops::{Deref, DerefMut};
