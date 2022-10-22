@@ -1,6 +1,5 @@
 use std::{collections::HashMap, path::Path};
 pub mod errors;
-mod exif_raw;
 mod traits;
 use traits::MatchesExtension;
 
@@ -188,10 +187,7 @@ impl FromRaw for DateTimeOriginal {
         let mut p = libraw_r::Processor::default();
         let mut dates: HashMap<i32, String> = HashMap::new();
         unsafe {
-            p.set_exifparser_callback(
-                Some(libraw_r::exif::exif_parser_callback),
-                std::mem::transmute(&mut dates),
-            )?
+            p.set_exifparser_callback(Some(libraw_r::exif::exif_parser_callback), &mut dates)?
         };
         p.open(path)?;
         if let Some(date) = dates.get(&0x9003) {
@@ -224,10 +220,7 @@ impl FromRaw for CreateDate {
         let mut p = libraw_r::Processor::default();
         let mut dates: HashMap<i32, String> = HashMap::new();
         unsafe {
-            p.set_exifparser_callback(
-                Some(libraw_r::exif::exif_parser_callback),
-                std::mem::transmute(&mut dates),
-            )?
+            p.set_exifparser_callback(Some(libraw_r::exif::exif_parser_callback), &mut dates)?
         };
         p.open(&path)?;
         let xml = p.xmpdata()?;
