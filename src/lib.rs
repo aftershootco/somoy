@@ -185,11 +185,20 @@ impl FromRaw for DateTimeOriginal {
     type Error = errors::Error;
     fn from_raw(path: impl AsRef<Path>) -> Result<Self, Self::Error> {
         let mut p = libraw_r::Processor::default();
-        let mut dates: HashMap<i32, String> = HashMap::new();
-        unsafe {
-            p.set_exifparser_callback(Some(libraw_r::exif::exif_parser_callback), &mut dates)?
-        };
+        let exifreader = p.set_exif_callback(
+            HashMap::<i32, String>::new(),
+            libraw_r::exif::DataStreamType::File,
+            |dates, tag, _, _, _, data, _| {
+                if tag == 0x9003 {
+                    let date = std::str::from_utf8(data)?.trim();
+                    dates.insert(tag, date.to_string());
+                }
+                Ok(())
+            },
+        )?;
         p.open(path)?;
+        let dates = exifreader.data(&mut p)?;
+        dbg!(&dates);
         if let Some(date) = dates.get(&0x9003) {
             if let Some(t) = sony_time(date) {
                 return Ok(Self(DateTime {
@@ -218,17 +227,25 @@ impl FromRaw for CreateDate {
     fn from_raw(path: impl AsRef<Path>) -> Result<Self, Self::Error> {
         use libraw_r::traits::LRString;
         let mut p = libraw_r::Processor::default();
-        let mut dates: HashMap<i32, String> = HashMap::new();
-        unsafe {
-            p.set_exifparser_callback(Some(libraw_r::exif::exif_parser_callback), &mut dates)?
-        };
+        let exifreader = p.set_exif_callback(
+            HashMap::<i32, String>::new(),
+            libraw_r::exif::DataStreamType::File,
+            |dates, tag, _, _, _, data, _| {
+                if tag == 0x9004 {
+                    let date = std::str::from_utf8(data)?.trim();
+                    dates.insert(tag, date.to_string());
+                }
+                Ok(())
+            },
+        )?;
         p.open(&path)?;
+        let dates = exifreader.data(&mut p)?;
         let xml = p.xmpdata()?;
         let x = xmp::try_load_element(std::io::Cursor::new(xml))?;
         let d = xmp::try_get_description(&x)?;
         let date_str = xmp::try_get_item(d, xmp::XMP_CREATEDATE).unwrap_or_default();
 
-        if let Some(date) = dates.get(&0x9003) {
+        if let Some(date) = dates.get(&0x9004) {
             if let Some(t) = sony_time(date) {
                 return Ok(Self(DateTime {
                     time: t,
