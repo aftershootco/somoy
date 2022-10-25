@@ -190,7 +190,7 @@ impl FromRaw for DateTimeOriginal {
             libraw_r::exif::DataStreamType::File,
             |dates, tag, _, _, _, data, _| {
                 if tag == 0x9003 {
-                    let date = std::str::from_utf8(data)?.trim();
+                    let date = std::str::from_utf8(data)?.trim_end_matches("\0");
                     dates.insert(tag, date.to_string());
                 }
                 Ok(())
@@ -198,7 +198,6 @@ impl FromRaw for DateTimeOriginal {
         )?;
         p.open(path)?;
         let dates = exifreader.data(&mut p)?;
-        dbg!(&dates);
         if let Some(date) = dates.get(&0x9003) {
             if let Some(t) = sony_time(date) {
                 return Ok(Self(DateTime {
@@ -232,7 +231,7 @@ impl FromRaw for CreateDate {
             libraw_r::exif::DataStreamType::File,
             |dates, tag, _, _, _, data, _| {
                 if tag == 0x9004 {
-                    let date = std::str::from_utf8(data)?.trim();
+                    let date = std::str::from_utf8(data)?.trim_end_matches("\0");
                     dates.insert(tag, date.to_string());
                 }
                 Ok(())
