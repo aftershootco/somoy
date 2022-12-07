@@ -10,4 +10,6 @@ pub enum Error {
     DateTimeParseError(#[from] chrono::ParseError),
     #[error("{0}")]
     LibrawError(#[from] libraw_r::LibrawError),
+    #[error("{0}")]
+    ImageError(#[from] img_parts::Error),
 }

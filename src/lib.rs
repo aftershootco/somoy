@@ -160,12 +160,17 @@ impl FromExif for CreateDate {
 impl FromExif for DateTimeOriginal {
     type Error = errors::Error;
     fn from_exif(path: impl AsRef<Path>) -> Result<Self, Self::Error> {
-        let file = std::fs::File::open(path)?;
-        let mut bufreader = std::io::BufReader::new(&file); // 1MB
-        let exifreader = exif::Reader::new();
-        let exif = exifreader.read_from_container(&mut bufreader)?;
+        let bytes = std::fs::read(path)?;
+        use img_parts::ImageEXIF;
+        let bytes = img_parts::jpeg::Jpeg::from_bytes(bytes.into())?
+            .exif()
+            .ok_or_else(DTO_NOT_FOUND)?;
+        std::fs::write("test.exif", &bytes)?;
+        // let exifreader = exif::Reader::new();
+        // let exif = exifreader.read_raw(bytes.into())?;
+        let (exif, _little_endian) = dbg!(exif::parse_exif(&bytes))?;
         let date_str = exif
-            .fields()
+            .iter()
             .find(|f| f.tag.1 == 0x9003)
             .ok_or_else(DTO_NOT_FOUND)?
             .display_value()
