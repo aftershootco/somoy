@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 chrono = "0.4.19"
 kamadak-exif = "0.5.4"
-libraw_r = { git = "https://github.com/aftershootco/libraw-rs", version = "0.4.0", features = ["exif"] }
+libraw_r = { version = "0.5.0", features = ["exif"], registry = "ktra" }
 xmp = { git = "https://github.com/aftershootco/xmp", version = "0.9.3" }
 thiserror = "1.0.31"
 
