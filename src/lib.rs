@@ -188,16 +188,18 @@ impl FromRaw for DateTimeOriginal {
         let exifreader = p.set_exif_callback(
             HashMap::<i32, String>::new(),
             libraw_r::exif::DataStreamType::File,
-            |dates, tag, _, _, _, data, _| {
-                if tag == 0x9003 {
-                    let date = std::str::from_utf8(data)?.trim_end_matches("\0");
-                    dates.insert(tag, date.to_string());
+            |args| {
+                // dates, tag, _, _, _, data, _
+
+                if args.tag == 0x9003 {
+                    let date = std::str::from_utf8(args.data)?.trim_end_matches("\0");
+                    args.callback_data.insert(args.tag, date.to_string());
                 }
                 Ok(())
             },
         )?;
         p.open(path)?;
-        let dates = exifreader.data(&mut p)?;
+        let dates = exifreader.data()?;
         if let Some(date) = dates.get(&0x9003) {
             if let Some(t) = sony_time(date) {
                 return Ok(Self(DateTime {
@@ -229,16 +231,17 @@ impl FromRaw for CreateDate {
         let exifreader = p.set_exif_callback(
             HashMap::<i32, String>::new(),
             libraw_r::exif::DataStreamType::File,
-            |dates, tag, _, _, _, data, _| {
-                if tag == 0x9004 {
-                    let date = std::str::from_utf8(data)?.trim_end_matches("\0");
-                    dates.insert(tag, date.to_string());
+            |args| {
+                // dates, tag, _, _, _, data, _
+                if args.tag == 0x9004 {
+                    let date = std::str::from_utf8(args.data)?.trim_end_matches("\0");
+                    args.callback_data.insert(args.tag, date.to_string());
                 }
                 Ok(())
             },
         )?;
         p.open(&path)?;
-        let dates = exifreader.data(&mut p)?;
+        let dates = exifreader.data()?;
         let xml = p.xmpdata()?;
         let x = xmp::try_load_element(std::io::Cursor::new(xml))?;
         let d = xmp::try_get_description(&x)?;
